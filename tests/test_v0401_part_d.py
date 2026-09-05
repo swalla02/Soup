@@ -362,6 +362,30 @@ def test_migrate_yaml_sequence_of_flow_mappings_is_not_called_jsonl(
     assert "got JSONL" not in result.output
 
 
+def test_migrate_lines_of_json_arrays_are_not_called_jsonl(
+    tmp_path: Path, monkeypatch
+):
+    """#699 says "top-level **objects**", so a file of arrays is out of scope.
+
+    `[1, 2]` on consecutive lines also fails `yaml.safe_load` today, with
+    `found '['` rather than `found '{'`, so this is a deliberately narrower
+    fix rather than a regression: the raw error it already gets is left alone.
+    Fails if the sniff stops requiring each parsed line to be an object, which
+    is the one thing only an array or a bare scalar can discriminate.
+    """
+    from soup_cli.cli import app
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "arrays.json").write_text("[1, 2]\n[3, 4]\n", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["migrate", "--from", "llamafactory", "arrays.json", "--dry-run"]
+    )
+    assert "got JSONL" not in result.output
+    assert result.exit_code == 1, (result.output, repr(result.exception))
+
+
 def test_migrate_jsonl_record_over_the_read_bound_is_not_detected(
     tmp_path: Path, monkeypatch
 ):
